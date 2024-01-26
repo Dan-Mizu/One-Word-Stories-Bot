@@ -6,16 +6,24 @@ import { Client, Events, GatewayIntentBits } from "discord.js";
 // message
 console.info(`Starting (${name} - v${version})... `);
 
+// constants
+const endPunctuation = [".", "...", "!", "?"];
+const middlePunctuation = [",", "-", ":", ";", "—", "--"];
+
 // methods
-const isPunctuation = (message: string) => {
-	if (
-		message === "." ||
-		message === "!" ||
-		message === "?" ||
-		message === "..."
-	)
-		return true;
-	else return false;
+const isMiddlePunctuation = (message: string) => {
+	let response = false;
+	response = middlePunctuation.some((punctuation) => {
+		if (punctuation === message) return true;
+	});
+	return response;
+};
+const isEndPunctuation = (message: string) => {
+	let response = false;
+	response = endPunctuation.some((punctuation) => {
+		if (punctuation === message) return true;
+	});
+	return response;
 };
 
 // create a new Client instance
@@ -40,16 +48,16 @@ client.on(Events.MessageCreate, (message) => {
 	// message is in correct channel
 	if (message.channel.id === process.env.STORY_CHANNEL) {
 		// detect period (full stop for EU-ers)
-		if (isPunctuation(message.content)) {
+		if (isEndPunctuation(message.content)) {
 			// get punctuation
 			let punctuation = message.content;
 
 			// fetch up to 100 past messages in channel
 			message.channel.messages.fetch({ limit: 100 }).then((messages) => {
 				// init sentence
-				let sentence: string[] = [];
+				let words: string[] = [];
 
-				// create sentence using messages
+				// find words in sentence
 				messages.some((word) => {
 					// ignore latest period
 					if (word.id === message.id) return false;
@@ -58,15 +66,32 @@ client.on(Events.MessageCreate, (message) => {
 					if (word.author.bot) return false;
 
 					// detected previous period
-					if (isPunctuation(word.content)) return true;
+					if (isEndPunctuation(word.content)) return true;
 
-					// add word to sentence
-					sentence.unshift(word.content.trim());
+					// add word to words list
+					words.unshift(word.content.trim());
 				});
 
+				// create sentence
+				let sentence = "";
+				for (const word of words) {
+					if (isMiddlePunctuation(word)) {
+						sentence += word;
+					} else sentence += " " + word;
+				}
+
 				// send completed sentence
-				message.channel.send(sentence.join(" ") + punctuation);
+				message.channel.send(sentence + punctuation);
 			});
+		}
+
+		// word checks
+		if (message.content.trim().includes(" ")) {
+			message.author.send({
+				content:
+					"Please only send 1 word at a time in the one-word-stories channel...",
+			});
+			message.delete();
 		}
 	}
 });
